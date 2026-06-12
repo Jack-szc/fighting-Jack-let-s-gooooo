@@ -1,0 +1,30 @@
+[
+  {
+    "category": "示例品类-方向",
+    "count": 3,
+    "queries": [
+      "示例关键词1",
+      "示例关键词2"
+    ],
+    "keywords": [
+      "示例",
+      "关键词"
+    ],
+    "must_any": [
+      "必须命中词"
+    ],
+    "prefer_any": [
+      "优先词"
+    ],
+    "reject_any": [
+      "搬运",
+      "转载",
+      "合集",
+      "外网",
+      "侵删"
+    ],
+    "min_score": 8,
+    "min_followers": 800,
+    "max_followers": 180000
+  }
+]
