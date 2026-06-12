@@ -1,0 +1,17 @@
+node_modules/
+.venv*/
+outputs/
+datas/
+
+.DS_Store
+*.log
+*.tmp
+*.cache
+
+.env
+.env.*
+cookies.txt
+*.xlsx
+*.csv
+*.jsonl
+
