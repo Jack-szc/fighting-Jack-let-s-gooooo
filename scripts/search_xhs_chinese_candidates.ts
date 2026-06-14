@@ -112,11 +112,28 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function randomInt(min: number, max: number): number {
+  if (max <= min) return min
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
 function envNumber(name: string, fallback: number): number {
   const raw = process.env[name]
   if (!raw) return fallback
   const value = Number(raw)
   return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function envNumberAtLeast(name: string, fallback: number, min: number): number {
+  return Math.max(envNumber(name, fallback), min)
+}
+
+async function sleepJitter(minMs: number, maxMs: number, label: string): Promise<void> {
+  const waitMs = randomInt(minMs, maxMs)
+  if (waitMs > 0) {
+    console.info(`[sleep] ${label} ${waitMs}ms`)
+    await sleep(waitMs)
+  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -382,21 +399,32 @@ async function main(): Promise<void> {
     if (row.笔记ID) seenIds.add(row.笔记ID)
   }
   const followerCache = new Map<string, string>(Object.entries(materialIndex.follower_by_user_id))
-  const queryConcurrency = envNumber('XHS_CHINESE_QUERY_CONCURRENCY', 2)
-  const candidateConcurrency = envNumber('XHS_CHINESE_CANDIDATE_CONCURRENCY', 3)
+  const queryConcurrency = envNumber('XHS_CHINESE_QUERY_CONCURRENCY', 1)
+  const candidateConcurrency = envNumber('XHS_CHINESE_CANDIDATE_CONCURRENCY', 2)
   const searchPageSize = envNumber('XHS_CHINESE_SEARCH_PAGE_SIZE', 10)
   const detailTimeout = envNumber('XHS_CHINESE_DETAIL_TIMEOUT_MS', 30_000)
   const followerTimeout = envNumber('XHS_CHINESE_FOLLOWER_TIMEOUT_MS', 30_000)
-  const requestSleep = envNumber('XHS_CHINESE_REQUEST_SLEEP_MS', 800)
+  const requestSleepMin = envNumber('XHS_CHINESE_REQUEST_SLEEP_MIN_MS', envNumber('XHS_CHINESE_REQUEST_SLEEP_MS', 1500))
+  const requestSleepMax = envNumberAtLeast('XHS_CHINESE_REQUEST_SLEEP_MAX_MS', 4000, requestSleepMin)
+  const searchSleepMin = envNumber('XHS_CHINESE_SEARCH_SLEEP_MIN_MS', 1200)
+  const searchSleepMax = envNumberAtLeast('XHS_CHINESE_SEARCH_SLEEP_MAX_MS', 3500, searchSleepMin)
+  const maxDetailMultiplier = envNumber('XHS_CHINESE_MAX_DETAIL_MULTIPLIER', 10)
 
   for (const config of configs) {
     const existingCount = output.filter((row) => row.品类信息 === config.category && !isHighRisk(row)).length
     if (existingCount >= config.count) continue
     const candidates: Array<{ score: number; row: OutputRow }> = []
     const searched = new Set<string>()
-    console.info(`[category] ${config.category} 需要补 ${config.count - existingCount} 条，粉丝范围 ${config.minFollowers}-${config.maxFollowers - 1}`)
+    const needed = config.count - existingCount
+    const maxDetailRequests = envNumber(
+      'XHS_CHINESE_MAX_DETAIL_PER_CATEGORY',
+      Math.max(needed * maxDetailMultiplier, needed + 12),
+    )
+    let detailRequests = 0
+    console.info(`[category] ${config.category} 需要补 ${needed} 条，粉丝范围 ${config.minFollowers}-${config.maxFollowers - 1}，详情上限 ${maxDetailRequests}`)
 
     for (let queryIndex = 0; queryIndex < config.queries.length; queryIndex += queryConcurrency) {
+      if (detailRequests >= maxDetailRequests) break
       const queryBatch = config.queries.slice(queryIndex, queryIndex + queryConcurrency)
       const searchResults = await Promise.all(queryBatch.map(async (query) => {
         console.info(`[search] ${config.category} :: ${query}`)
@@ -415,8 +443,10 @@ async function main(): Promise<void> {
       })
 
       for (let i = 0; i < pendingHits.length; i += candidateConcurrency) {
+        if (detailRequests >= maxDetailRequests) break
         const batch = pendingHits.slice(i, i + candidateConcurrency)
         const results = await Promise.all(batch.map(async (hit) => {
+          detailRequests += 1
           const url = `https://www.xiaohongshu.com/explore/${hit.id}?xsec_token=${hit.xsec_token}`
           const detail = await withTimeout(
             getNoteInfo(url, cookies),
@@ -462,9 +492,10 @@ async function main(): Promise<void> {
           }
           candidates.push(result)
         }
-        await sleep(requestSleep)
+        await sleepJitter(requestSleepMin, requestSleepMax, 'detail-batch')
         if (candidates.length >= config.count - existingCount) break
       }
+      await sleepJitter(searchSleepMin, searchSleepMax, 'search-batch')
       if (candidates.length >= config.count - existingCount) break
     }
 
