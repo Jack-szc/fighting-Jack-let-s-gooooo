@@ -46,6 +46,38 @@ git checkout <commit_id>
 git checkout main
 ```
 
+## 回滚到命名版本
+
+查看可用标签：
+
+```bash
+git tag
+```
+
+回到优化前稳定版：
+
+```bash
+git checkout xhs-cn-stable-20260612
+```
+
+回到风控安全版：
+
+```bash
+git checkout xhs-cn-rate-limit-safe-20260613
+```
+
+如果只是要恢复某个脚本到本地运行环境，可以先切到对应标签，再复制脚本：
+
+```bash
+cp scripts/search_xhs_chinese_candidates.ts "/Users/jkos/Documents/New project/xhs-content-runner/scripts/search_xhs_chinese_candidates.ts"
+```
+
+恢复完成后回到最新版：
+
+```bash
+git checkout main
+```
+
 ## 重要边界
 
 本仓库可以回滚：
@@ -65,4 +97,3 @@ git checkout main
 - 依赖包目录。
 
 这些内容保留在本地运行环境中，不上传到 GitHub。
-
