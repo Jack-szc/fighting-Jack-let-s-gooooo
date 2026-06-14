@@ -48,19 +48,19 @@ git checkout main
 
 ## 回滚到命名版本
 
-查看可用标签：
+GitHub 网页上可以通过分支下拉框切换到命名版本。本地仓库里也有同名标签，可以用下面命令查看：
 
 ```bash
 git tag
 ```
 
-回到优化前稳定版：
+本地回到优化前稳定版：
 
 ```bash
 git checkout xhs-cn-stable-20260612
 ```
 
-回到风控安全版：
+本地回到风控安全版：
 
 ```bash
 git checkout xhs-cn-rate-limit-safe-20260613
